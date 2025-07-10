@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, Calendar, DollarSign, MapPin, User, Star, MessageSquare } from 'lucide-react';
 import Navigation from '@/components/Navigation';
+import ReviewForm from '@/components/ReviewForm';
+import { useToast } from '@/hooks/use-toast';
 import ReviewForm from '@/components/ReviewForm';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +40,9 @@ interface Order {
   canReview?: boolean;
   hasReview?: boolean;
   reviewId?: string;
+  canReview?: boolean;
+  hasReview?: boolean;
+  reviewId?: string;
 }
 
 const Orders = () => {
@@ -44,10 +50,47 @@ const Orders = () => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const { toast } = useToast();
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const { toast } = useToast();
 
   useEffect(() => {
     loadOrders();
-  }, []);
+      // In a real app, you would fetch from your API
+      // For now, we'll use localStorage as fallback
+      const savedOrders = localStorage.getItem('orders');
+      if (savedOrders) {
+        setOrders(JSON.parse(savedOrders));
+      }
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      toast({
+        title: 'Failed to load orders',
+        description: 'Please try refreshing the page',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleWriteReview = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowReviewForm(true);
+  };
+
+  const handleReviewSuccess = () => {
+    setShowReviewForm(false);
+    setSelectedOrderId('');
+    loadOrders(); // Reload orders to update review status
+    toast({
+      title: 'Review submitted!',
+      description: 'Thank you for your feedback.',
+    });
+  };
+
+  const handleReviewCancel = () => {
+    setShowReviewForm(false);
+    setSelectedOrderId('');
+  };
 
   const loadOrders = async () => {
     try {
@@ -236,6 +279,26 @@ const Orders = () => {
                     <Badge className={getStatusColor(order.status)}>
                       {order.status}
                     </Badge>
+                    
+                    {/* Review Actions */}
+                    <div className="mt-4 pt-4 border-t border-cyber-gold/30">
+                      {order.canReview && !order.hasReview && (
+                        <Button
+                          onClick={() => handleWriteReview(order.id)}
+                          className="bg-cyber-gold text-black hover:bg-cyber-gold/80 font-tech"
+                        >
+                          <Star className="mr-2 h-4 w-4" />
+                          Write Review
+                        </Button>
+                      )}
+                      
+                      {order.hasReview && (
+                        <div className="flex items-center text-cyber-gold/60 font-tech text-sm">
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          Review Submitted
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   {order.canReview && !order.hasReview && (
@@ -260,6 +323,15 @@ const Orders = () => {
           </motion.div>
         ))}
       </div>
+
+      {/* Review Form Modal */}
+      {showReviewForm && (
+        <ReviewForm
+          orderId={selectedOrderId}
+          onSuccess={handleReviewSuccess}
+          onCancel={handleReviewCancel}
+        />
+      )}
 
       {/* Review Form Modal */}
       {showReviewForm && (

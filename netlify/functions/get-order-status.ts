@@ -1,6 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { promises as fs } from 'fs';
 import path from 'path';
+import path from 'path';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,7 +44,6 @@ export const handler: Handler = async (event, context) => {
       const ordersData = await fs.readFile(ordersPath, 'utf8');
       const orders = JSON.parse(ordersData);
       order = orders[orderId];
-    } catch (error) {
       console.error('Failed to read order from orders.json:', error);
       return {
         statusCode: 500,

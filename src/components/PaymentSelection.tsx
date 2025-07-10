@@ -60,6 +60,15 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
             sku: item.id
           })),
           totalAmount: total,
+          state: address.state,
+          pincode: address.pincode,
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.id
+          })),
+          totalAmount: total,
         }),
       });
 

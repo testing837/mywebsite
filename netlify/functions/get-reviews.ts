@@ -1,6 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { promises as fs } from 'fs';
 import path from 'path';
+import path from 'path';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,21 +18,6 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
-  if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
-  try {
-    const { productName, rating, limit = '10', offset = '0' } = event.queryStringParameters || {};
-    
-    // Load reviews from reviews.json
-    let reviews = [];
-    
-    try {
       const reviewsPath = path.join(process.cwd(), 'data', 'reviews.json');
       const reviewsData = await fs.readFile(reviewsPath, 'utf8');
       reviews = JSON.parse(reviewsData);
