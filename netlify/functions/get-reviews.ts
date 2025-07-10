@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
-import { getStore } from '@netlify/kv';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,30 +28,15 @@ export const handler: Handler = async (event, context) => {
   try {
     const { productName, rating, limit = '10', offset = '0' } = event.queryStringParameters || {};
     
-    // Load reviews from KV storage
-    const reviewsStore = getStore('reviews');
+    // Load reviews from reviews.json
     let reviews = [];
     
     try {
-      // Get all review keys
-      const { keys } = await reviewsStore.list({ prefix: 'review-' });
-      
-      // Fetch all reviews
-      const reviewPromises = keys.map(async (key) => {
-        try {
-          const reviewData = await reviewsStore.get(key.name);
-          return reviewData ? JSON.parse(reviewData) : null;
-        } catch (error) {
-          console.error(`Failed to parse review ${key.name}:`, error);
-          return null;
-        }
-      });
-      
-      const reviewResults = await Promise.all(reviewPromises);
-      reviews = reviewResults.filter(review => review !== null);
-      
+      const reviewsPath = path.join(process.cwd(), 'data', 'reviews.json');
+      const reviewsData = await fs.readFile(reviewsPath, 'utf8');
+      reviews = JSON.parse(reviewsData);
     } catch (error) {
-      console.error('Failed to read reviews from KV storage:', error);
+      console.error('Failed to read reviews from reviews.json:', error);
       reviews = [];
     }
 

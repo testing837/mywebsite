@@ -56,14 +56,23 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
     setIsLoading(true);
     try {
       // Create order on backend
-      const response = await fetch('/.netlify/functions/create-order', {
+      const response = await fetch('/.netlify/functions/create-cod-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items,
-          address,
-          paymentMode: 'PREPAID',
-          amount: amount,
+          customerName: address.name,
+          phone: address.phone,
+          address: address.address,
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.id
+          })),
+          totalAmount: amount,
         }),
       });
 
@@ -75,12 +84,12 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 
       // Initialize Razorpay
       const options = {
-        key: orderData.keyId,
-        amount: orderData.amount,
+        key: 'rzp_test_rEY8qFgDDd5xsl', // Use your Razorpay key
+        amount: amount * 100, // Convert to paise
         currency: 'INR',
         name: 'OYIEE',
         description: 'Cyberpunk Fashion Order',
-        order_id: orderData.razorpayOrderId,
+        order_id: orderData.order_id,
         handler: async (response: any) => {
           try {
             // Verify payment on backend
@@ -98,7 +107,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
             
             if (verifyData.success) {
               clearCart();
-              onSuccess(verifyData.orderId);
+              onSuccess(orderData.order_id);
               toast({
                 title: 'Payment Successful!',
                 description: 'Your order has been confirmed.',

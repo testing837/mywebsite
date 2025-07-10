@@ -43,14 +43,23 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
 
     setIsProcessing(true);
     try {
-      const response = await fetch('/.netlify/functions/create-order', {
+      const response = await fetch('/.netlify/functions/create-cod-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items,
-          address,
-          paymentMode: 'COD',
-          amount: total,
+          customerName: address.name,
+          phone: address.phone,
+          address: address.address,
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            sku: item.id
+          })),
+          totalAmount: total,
         }),
       });
 
@@ -58,7 +67,7 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
       
       if (data.success) {
         clearCart();
-        onPaymentComplete(data.orderId);
+        onPaymentComplete(data.order_id);
         toast({
           title: 'Order Placed!',
           description: 'Your Cash on Delivery order has been confirmed.',

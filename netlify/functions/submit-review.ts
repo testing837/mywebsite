@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
-import { getStore } from '@netlify/kv';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 interface ReviewRequest {
   orderId: string;
@@ -66,17 +67,16 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    // Check if order exists and is delivered
-    const ordersStore = getStore('orders');
+    // Check if order exists and is delivered from orders.json
     let order = null;
     
     try {
-      const orderData = await ordersStore.get(`order-${reviewData.orderId}`);
-      if (orderData) {
-        order = JSON.parse(orderData);
-      }
+      const ordersPath = path.join(process.cwd(), 'data', 'orders.json');
+      const ordersData = await fs.readFile(ordersPath, 'utf8');
+      const orders = JSON.parse(ordersData);
+      order = orders[reviewData.orderId];
     } catch (error) {
-      console.error('Failed to read order from KV storage:', error);
+      console.error('Failed to read order from orders.json:', error);
     }
 
     if (!order) {
@@ -97,9 +97,19 @@ export const handler: Handler = async (event, context) => {
     }
 
     // Check if review already exists for this order
-    const reviewsStore = getStore('reviews');
     try {
-      const existingReview = await reviewsStore.get(`review-${reviewData.orderId}`);
+      const reviewsPath = path.join(process.cwd(), 'data', 'reviews.json');
+      let reviews = [];
+      
+      try {
+        const reviewsData = await fs.readFile(reviewsPath, 'utf8');
+        reviews = JSON.parse(reviewsData);
+      } catch (error) {
+        // File doesn't exist, start with empty array
+        reviews = [];
+      }
+      
+      const existingReview = reviews.find(r => r.orderId === reviewData.orderId);
       if (existingReview) {
         return {
           statusCode: 400,
@@ -127,12 +137,24 @@ export const handler: Handler = async (event, context) => {
       verified: true // Since it's linked to a real order
     };
 
-    // Save review to KV storage
+    // Save review to reviews.json
     try {
-      await reviewsStore.set(`review-${reviewData.orderId}`, JSON.stringify(review));
-      console.log('Review saved to KV storage:', reviewId);
+      const reviewsPath = path.join(process.cwd(), 'data', 'reviews.json');
+      let reviews = [];
+      
+      try {
+        const reviewsData = await fs.readFile(reviewsPath, 'utf8');
+        reviews = JSON.parse(reviewsData);
+      } catch (error) {
+        // File doesn't exist, start with empty array
+        reviews = [];
+      }
+      
+      reviews.push(review);
+      await fs.writeFile(reviewsPath, JSON.stringify(reviews, null, 2));
+      console.log('Review saved to reviews.json:', reviewId);
     } catch (error) {
-      console.error('Failed to save review to KV storage:', error);
+      console.error('Failed to save review to reviews.json:', error);
       return {
         statusCode: 500,
         headers: corsHeaders,
@@ -142,10 +164,16 @@ export const handler: Handler = async (event, context) => {
 
     // Update order to mark as reviewed
     try {
-      order.hasReview = true;
-      order.reviewId = reviewId;
-      await ordersStore.set(`order-${reviewData.orderId}`, JSON.stringify(order));
-      console.log('Order updated with review info:', reviewData.orderId);
+      const ordersPath = path.join(process.cwd(), 'data', 'orders.json');
+      const ordersData = await fs.readFile(ordersPath, 'utf8');
+      const orders = JSON.parse(ordersData);
+      
+      if (orders[reviewData.orderId]) {
+        orders[reviewData.orderId].hasReview = true;
+        orders[reviewData.orderId].reviewId = reviewId;
+        await fs.writeFile(ordersPath, JSON.stringify(orders, null, 2));
+        console.log('Order updated with review info:', reviewData.orderId);
+      }
     } catch (error) {
       console.error('Failed to update order with review info:', error);
       // Continue even if order update fails

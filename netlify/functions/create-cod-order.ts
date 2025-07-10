@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
-import { getStore } from '@netlify/kv';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 interface OrderRequest {
   customerName: string;
@@ -18,6 +19,8 @@ interface OrderRequest {
 }
 
 interface NimbusPostOrder {
+  client_id: string;
+  warehouse_id: string;
   order_number: string;
   order_date: string;
   pickup_location: string;
@@ -63,6 +66,7 @@ interface NimbusPostOrder {
   breadth: number;
   height: number;
   weight: number;
+  cod_amount: number;
 }
 
 const corsHeaders = {
@@ -126,6 +130,8 @@ export const handler: Handler = async (event, context) => {
 
     // Prepare NimbusPost order data
     const nimbusOrder: NimbusPostOrder = {
+      client_id: process.env.NIMBUS_CLIENT_ID || '',
+      warehouse_id: process.env.NIMBUS_WAREHOUSE_ID || '',
       order_number: orderNumber,
       order_date: new Date().toISOString().split('T')[0],
       pickup_location: "Primary",
@@ -170,16 +176,16 @@ export const handler: Handler = async (event, context) => {
       length: 25,
       breadth: 20,
       height: 5,
-      weight: 0.5
+      weight: 0.5,
+      cod_amount: orderData.totalAmount
     };
 
     // Call NimbusPost API
-    const nimbusResponse = await fetch('https://api.nimbuspost.com/v1/shipments', {
+    const nimbusResponse = await fetch('https://api.nimbuspost.com/v1/shipments/generate/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.NIMBUS_API_KEY}`,
-        'Client-ID': process.env.NIMBUS_CLIENT_ID || '',
+        'api_key': process.env.NIMBUS_API_KEY || '',
       },
       body: JSON.stringify(nimbusOrder),
     });
@@ -192,7 +198,7 @@ export const handler: Handler = async (event, context) => {
       nimbusResult = { error: 'Invalid response from shipping provider' };
     }
 
-    // Create order record for KV storage
+    // Create order record
     const orderRecord = {
       orderId: orderNumber,
       customerName: orderData.customerName,
@@ -203,7 +209,7 @@ export const handler: Handler = async (event, context) => {
       pincode: orderData.pincode,
       items: orderData.items,
       totalAmount: orderData.totalAmount,
-      status: 'Order Placed',
+      status: 'Created',
       paymentMethod: 'COD',
       createdAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
@@ -215,14 +221,25 @@ export const handler: Handler = async (event, context) => {
       reviewId: null
     };
 
-    // Save to Netlify KV
+    // Save to orders.json
     try {
-      const store = getStore('orders');
-      await store.set(`order-${orderNumber}`, JSON.stringify(orderRecord));
-      console.log('Order saved to KV storage:', orderNumber);
+      const ordersPath = path.join(process.cwd(), 'data', 'orders.json');
+      let orders = {};
+      
+      try {
+        const ordersData = await fs.readFile(ordersPath, 'utf8');
+        orders = JSON.parse(ordersData);
+      } catch (error) {
+        // File doesn't exist or is empty, start with empty object
+        orders = {};
+      }
+
+      orders[orderNumber] = orderRecord;
+      await fs.writeFile(ordersPath, JSON.stringify(orders, null, 2));
+      console.log('Order saved to orders.json:', orderNumber);
     } catch (error) {
-      console.error('Failed to save order to KV storage:', error);
-      // Continue execution even if KV save fails
+      console.error('Failed to save order to orders.json:', error);
+      // Continue execution even if file save fails
     }
 
     return {
@@ -230,9 +247,9 @@ export const handler: Handler = async (event, context) => {
       headers: corsHeaders,
       body: JSON.stringify({
         success: true,
-        order_number: orderNumber,
+        order_id: orderNumber,
         tracking_id: nimbusResult.data?.awb_number || null,
-        status: 'Order Placed',
+        status: 'Created',
         message: 'Order created successfully',
         nimbus_response: nimbusResult
       }),
